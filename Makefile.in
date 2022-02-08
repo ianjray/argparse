@@ -1,0 +1,66 @@
+.POSIX:
+.SUFFIXES:
+.SUFFIXES: .cpp .o .uto
+
+VERSION    = 1.0.0
+
+CXX        = @CXX@
+CCOV       = gcov
+CFLAGS     = @CFLAGS@
+CFLAGS_COV = @CFLAGS_COV@
+CFLAGS_SAN = @CFLAGS_SAN@
+INCLUDEDIR = @PREFIX@/include
+LD         = @LD@
+LIBDIR     = @PREFIX@/lib
+PREFIX     = @PREFIX@
+
+.PHONY: all
+all: libargparse.a argparse.coverage
+
+libargparse.a: argparse.o
+	$(LD) -r $^ -o $@
+
+.cpp.o:
+	$(CXX) $(CFLAGS) -c $^ -o $@
+
+.cpp.uto:
+	$(CXX) $(CFLAGS) $(CFLAGS_COV) $(CFLAGS_SAN) -c $^ -o $@
+
+argparse.coverage: argparse.uto test_argparse.cpp
+	$(CXX) $(CFLAGS) $(CFLAGS_COV) $(CFLAGS_SAN) $^ -o $@
+	./$@
+	$(CCOV) argparse.cpp
+	! grep "#####" argparse.cpp.gcov |grep -ve "// UNREACHABLE$$"
+
+libargparse.pc:
+	( echo 'Name: libargparse' ;\
+	echo 'Version: $(VERSION)' ;\
+	echo 'Description: Command Line Argument Parser' ;\
+	echo 'prefix=$(PREFIX)' ;\
+	echo 'exec_prefix=$${prefix}' ;\
+	echo 'includedir=$${prefix}/include' ;\
+	echo 'libdir=$${prefix}/lib' ;\
+	echo 'Cflags: -I$${includedir}' ;\
+	echo 'Libs: -L$${libdir} -largparse' ) > $@
+
+.PHONY: install
+install: argparse.hpp libargparse.a libargparse.pc
+	mkdir -p $(INCLUDEDIR)/libargparse
+	mkdir -p $(LIBDIR)/pkgconfig
+	install -m644 argparse.hpp $(INCLUDEDIR)/libargparse/argparse.hpp
+	install -m644 libargparse.a $(LIBDIR)/libargparse.a
+	install -m644 libargparse.pc $(LIBDIR)/pkgconfig/libargparse.pc
+
+.PHONY: uninstall
+uninstall:
+	rm -f $(INCLUDEDIR)/libargparse/argparse.hpp
+	rm -f $(LIBDIR)/libargparse.a
+	rm -f $(LIBDIR)/pkgconfig/libargparse.pc
+
+.PHONY: clean
+clean:
+	rm -rf libargparse.a libargparse.pc *.o *.uto *.gc?? *.coverage
+
+.PHONY: distclean
+distclean: clean
+	rm -f Makefile config.status
